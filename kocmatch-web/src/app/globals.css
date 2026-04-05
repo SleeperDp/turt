@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+:root {
+  /* Soft turtle-shell inspired greens */
+  --background: #e6f7d9;
+  --background-strong: #c8efb0;
+  --foreground: #0f172a;
+  --accent: #16a34a;
+  --accent-soft: #bbf7d0;
+  --accent-strong: #15803d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-strong: var(--accent-strong);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #020617;
+    --background-strong: #052e16;
+    --foreground: #e5f9e1;
+    --accent: #22c55e;
+    --accent-soft: #14532d;
+    --accent-strong: #22c55e;
+  }
+}
+
+body {
+  background: radial-gradient(
+      circle at top left,
+      var(--background-strong),
+      transparent 55%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      var(--accent-soft),
+      transparent 55%
+    ),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
