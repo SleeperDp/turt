@@ -1,19 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-/** Edge middleware: avoid `@/lib/*` imports (Vercel Edge unsupported-module warnings). */
-async function isAdminRpc(
-  supabase: { rpc: (name: string) => PromiseLike<{ data: unknown; error: unknown }> }
-): Promise<boolean> {
-  try {
-    const { data, error } = await supabase.rpc("is_admin");
-    if (error) return false;
-    return Boolean(data);
-  } catch {
-    return false;
-  }
-}
-
 function getSupabaseEnv(): { url: string; key: string } | null {
   const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
   const key = (
@@ -25,10 +12,14 @@ function getSupabaseEnv(): { url: string; key: string } | null {
   return { url, key };
 }
 
-/** Session refresh writes Set-Cookie on `from`; redirects must forward those cookies. */
+/** Forward Set-Cookie headers from session refresh onto redirects. */
 function copyCookies(from: NextResponse, to: NextResponse) {
-  for (const c of from.cookies.getAll()) {
-    to.cookies.set(c);
+  try {
+    for (const c of from.cookies.getAll()) {
+      to.cookies.set(c.name, c.value, c);
+    }
+  } catch (e) {
+    console.error("[middleware] copyCookies:", e);
   }
 }
 
@@ -52,6 +43,7 @@ export async function middleware(request: NextRequest) {
     );
   }
 
+  // Supabase expects request cookie mutations to be visible to getAll(); rebuild response after setAll.
   let supabaseResponse = NextResponse.next({ request });
 
   try {
@@ -62,7 +54,19 @@ export async function middleware(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           for (const { name, value, options } of cookiesToSet) {
-            supabaseResponse.cookies.set(name, value, options);
+            if (value) {
+              request.cookies.set({ name, value, ...options });
+            } else {
+              request.cookies.delete(name);
+            }
+          }
+          supabaseResponse = NextResponse.next({ request });
+          for (const { name, value, options } of cookiesToSet) {
+            if (value) {
+              supabaseResponse.cookies.set(name, value, options);
+            } else {
+              supabaseResponse.cookies.delete(name);
+            }
           }
         },
       },
@@ -78,15 +82,11 @@ export async function middleware(request: NextRequest) {
     }
 
     const sessionUser = authError ? null : user;
-
     const { pathname } = request.nextUrl;
     const isAuthPage = pathname.startsWith("/login");
-    const isAdminPage = pathname.startsWith("/admin");
-    const isDashboardPage = pathname.startsWith("/dashboard");
-    const needsAdminCheck =
-      isAdminPage || isAuthPage || isDashboardPage || pathname === "/";
-    const isAdmin =
-      sessionUser && needsAdminCheck ? await isAdminRpc(supabase) : false;
+
+    // Admin routing is handled in src/app/admin/layout.tsx and src/app/dashboard/layout.tsx
+    // so middleware stays small for Vercel Edge (no RPC here).
 
     if (!sessionUser && !isAuthPage) {
       const url = request.nextUrl.clone();
@@ -98,23 +98,7 @@ export async function middleware(request: NextRequest) {
 
     if (sessionUser && isAuthPage) {
       const url = request.nextUrl.clone();
-      url.pathname = isAdmin ? "/admin" : "/dashboard";
-      const redirect = NextResponse.redirect(url);
-      copyCookies(supabaseResponse, redirect);
-      return redirect;
-    }
-
-    if (sessionUser && isAdminPage && !isAdmin) {
-      const url = request.nextUrl.clone();
       url.pathname = "/dashboard";
-      const redirect = NextResponse.redirect(url);
-      copyCookies(supabaseResponse, redirect);
-      return redirect;
-    }
-
-    if (sessionUser && isAdmin && (pathname === "/" || isDashboardPage)) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/admin";
       const redirect = NextResponse.redirect(url);
       copyCookies(supabaseResponse, redirect);
       return redirect;
@@ -131,5 +115,11 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    /*
+     * Skip: static assets, images, favicon, and API routes.
+     * APIs use their own Supabase client; skipping reduces Edge invocations and failures.
+     */
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+  ],
 };
