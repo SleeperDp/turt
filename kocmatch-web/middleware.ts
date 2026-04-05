@@ -1,6 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { isAdmin as isAdminRpc } from "@/lib/isAdmin";
+
+/** Edge middleware: avoid `@/lib/*` imports (Vercel Edge unsupported-module warnings). */
+async function isAdminRpc(
+  // Supabase `rpc` return type is a thenable builder; keep loose for Edge bundle.
+  supabase: { rpc: (name: string) => PromiseLike<{ data: unknown; error: unknown }> }
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc("is_admin");
+  if (error) return false;
+  return Boolean(data);
+}
 
 function createClient(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
