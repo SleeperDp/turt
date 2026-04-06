@@ -134,14 +134,13 @@ export default function LoginPage() {
 
               <div className="relative">
                 <h1 className="text-4xl font-semibold tracking-tight">
-                  you&apos;ve seen eachother…
+                  You&apos;ve seen eachother…
                 </h1>
                 <p className="mt-3 text-lg text-white/70">but not like this?</p>
 
                 <div className="mt-10 space-y-3 text-sm leading-6 text-white/60">
-                  <p>quietly discover people already in your world.</p>
-                  <p>the ones you notice. the ones who notice you.</p>
-                  <p>nothing is revealed unless it&apos;s mutual.</p>
+                  <p>Quietly discover people already in your world.</p>
+                  <p>Nothing is revealed unless it&apos;s mutual.</p>
                 </div>
               </div>
             </div>
